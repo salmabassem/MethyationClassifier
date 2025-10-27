@@ -1,10 +1,10 @@
 # AML iPLEX Subtyping Classifier (Random Forest + Calibration)
 
-This repository contains a clean, reproducible R pipeline for AML iPLEX CpG subtyping that mirrors an R Markdown workflow and wraps it into **four simple functions**. It:
+This repository contains a clean, reproducible R pipeline for AML iPLEX CpG subtyping using pure and mixed (impure) models. It:
 
-- aligns the *training* CpGs to the *current query* (no hard-coded exclusions),
+- aligns the *training* CpGs to the *current query*
 - trains a **Random Forest** (“Pure model”),
-- optionally fits a **multinomial ridge (glmnet) calibrator** to improve probability estimates,
+- fits a **multinomial ridge (glmnet) calibrator** to improve probability estimates,
 - evaluates with **nested cross-validation**, and
 - predicts on new data with **both** uncalibrated and calibrated outputs.
 
@@ -43,19 +43,17 @@ install.packages(c("randomForest", "glmnet", "caret", "pROC", "DT"))
 
 ## Data expectations
 
-- **Training matrix** — `data/Beat AML and TCGA training data.csv`  
+- **Training matrix** — `data/TrainingData.csv`  
   Rows = samples; **first column = sample ID**. Remaining columns = CpGs (numeric).  
   Non-CpG columns like `sample.ID`, `Epitype.Color2` are automatically dropped.
 
-- **Labels** — `data/Beat AML and TCGA training data_Epitypes.csv`  
+- **Labels** — `data/Epitypes.csv`  
   Must contain `sample.ID` and `Subtype` (factor target).
 
-- **Query** — `data/082025_AML_iPLEX_..._Subtyping.csv`  
+- **Query** — `data/TestData.csv`  
   Rows = samples; columns = CpGs present in your assay. Optional columns:
   - `Subtype` (if you have ground truth for evaluation)
   - `Blanks` (QC column; rows with high `Blanks` can be filtered before prediction)
-
-> **Important:** read CSVs with `check.names = FALSE` to preserve CpG names.
 
 ---
 
@@ -103,9 +101,9 @@ source("R/All_functions.R")
 set.seed(123)
 
 # 1) Load data (preserve CpG names)
-MethData <- read.csv("data/Beat AML and TCGA training data.csv", check.names = FALSE)
-Epitypes <- read.csv("data/Beat AML and TCGA training data_Epitypes.csv", check.names = FALSE)
-Query    <- read.csv("data/082025_AML_iPLEX_Sumitomo_batch5_plasma_duplicates_combined_by_assay_Subtyping.csv",
+MethData <- read.csv("data/TrainingData.csv", check.names = FALSE)
+Epitypes <- read.csv("data/Epitypes.csv", check.names = FALSE)
+Query    <- read.csv("data/TestData.csv",
                      row.names = 1, check.names = FALSE)
 
 # 2) Prepare training aligned to Query CpGs
@@ -150,18 +148,6 @@ write.csv(preds$calibrated_model, "outputs/predictions_calibrated.csv",   row.na
 
 - Always read CSVs with `check.names = FALSE` to preserve CpG names.
 - If you see **“No overlapping CpGs between training and query”**, ensure headers match and that you called `Prepare_Training()` with the same Query you will predict on.
-- The final calibrator intentionally uses the **last outer fold**’s inner stacks to match the original Rmd.
 
 ---
 
-## License
-
-MIT (add a `LICENSE` file).
-
-## Citation
-
-Please cite this repository and acknowledge your data sources (e.g., Beat AML, TCGA).
-
-## Contributing
-
-Issues and PRs are welcome.
