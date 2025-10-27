@@ -17,10 +17,10 @@ This repository contains a clean, reproducible R pipeline for AML iPLEX CpG subt
 ├─ R/
 │  ├─ All_functions.R          # Prepare_Training, nested_cv_calibrated_rf, Fit_RF_model, Run_Pure_Model
 │  └─ confusion_matrix.R       # helper used by examples (conf_matrix)
-├─ data/
-│  ├─ Beat AML and TCGA training data.csv
-│  ├─ Beat AML and TCGA training data_Epitypes.csv
-│  └─ 082025_AML_iPLEX_Sumitomo_batch5_plasma_duplicates_combined_by_assay_Subtyping.csv
+├─ Data/
+│  ├─ TrainingData.csv
+│  ├─ Epitypes.csv
+│  └─ TestData.csv
 ├─ outputs/                    # created by example script
 └─ example_demo.R              # end-to-end example script
 ```
