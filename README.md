@@ -56,27 +56,6 @@ install.packages(c("randomForest", "glmnet", "caret", "pROC", "DT"))
   - `Blanks` (QC column; rows with high `Blanks` can be filtered before prediction)
 
 ---
-
-## Functions (in `R/All_functions.R`)
-
-### `Prepare_Training(MethData, Epitypes, Query)`
-Builds the training frame using **only CpGs shared** between training and query and attaches `Subtype`.  
-**Returns:** `data.frame` with aligned CpGs + `Subtype` (factor).
-
-### `nested_cv_calibrated_rf(data, ntrees=500, mtry=6, outer_folds=3, inner_folds=3, seed=123, label_col="Subtype")`
-Outer K-fold CV; within each outer fold, fits an inner-fold **glmnet** calibrator and evaluates the **calibrated** outer test.  
-**Returns:** `mean_error`, `mean_auc`, `per_fold_error`, `per_fold_auc`, and the **last** outer-fold’s `calibration_probs/labels` (to mirror the original Rmd workflow).
-
-### `Fit_RF_model(data, cv, ntrees=500, mtry=6, seed=123, label_col="Subtype", show_table=FALSE)`
-Trains the **final RF** on all rows, shows **OOB (uncalibrated)** confusion, fits the **final** glmnet calibrator using `cv$last_calibration_*`, and computes **calibrated** training predictions & confusion.  
-**Returns:** `rf_model`, `calibration_model`, `calibrated_table`, `features`, `classes`.
-
-### `Run_Pure_Model(test_data, pure_rf_model, pure_calibration_model, blanks_threshold=21, label_col="Subtype")`
-Filters by `Blanks` (if present), aligns columns to the RF feature set, and returns **both** uncalibrated and calibrated predictions.  
-**Returns:** list with `pure_model` (uncalibrated probs + `calls`) and `calibrated_model` (calibrated probs + `calls`).
-
----
-
 ## Quickstart
 
 Run the full demo (train → evaluate → predict):
