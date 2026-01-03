@@ -88,26 +88,49 @@ Query    <- read.csv("data/TestData.csv",
 # 2) Prepare training aligned to Query CpGs
 iPlexData_Epi <- Prepare_Training(MethData, Epitypes, Query)
 
+# 3) Prepare Mixed data with added in silico impurity
+
+normal <- read.csv(" .csv", row.names = 1) 
+impure_data <-  Add_Impurity(iPlexData_Epi = iPlexData_Epi, Normal_samples = normal, impure_column = "average")
+
 # 3) Nested CV metrics (per-fold calibrator)
-cv <- nested_cv_calibrated_rf(iPlexData_Epi,
+pure_cv <- nested_cv_calibrated_rf(iPlexData_Epi,
                               ntrees = 500, mtry = 6,
                               outer_folds = 3, inner_folds = 3,
                               seed = 123)
-cat("Mean misclassification error:", cv$mean_error, "\n")
-cat("Mean multiclass AUC:",        cv$mean_auc,   "\n")
+impure_cv <- nested_cv_calibrated_rf(impure_data,
+                              ntrees = 500, mtry = 6,
+                              outer_folds = 3, inner_folds = 3,
+                              seed = 123)
+
+cat("Mean misclassification error:", pure_cv$mean_error, "\n")
+cat("Mean multiclass AUC:",        pure_cv$mean_auc,   "\n")
+
+cat("Mean misclassification error:", impure_cv$mean_error, "\n")
+cat("Mean multiclass AUC:",        impure_cv$mean_auc,   "\n")
+
 
 # 4) Fit final RF + final calibrator
-pure_models <- Fit_RF_model(iPlexData_Epi, cv = cv, ntrees = 500, mtry = 6, seed = 123)
-mixed_models <- Fit_RF_model(impure_data, cv = cv, ntrees = 500, mtry = 6, seed = 123)
+pure_models <- Fit_RF_model(iPlexData_Epi, cv = pure_cv, ntrees = 500, mtry = 6, seed = 123)
+mixed_models <- Fit_RF_model(impure_data, cv = impure_cv, ntrees = 500, mtry = 6, seed = 123)
 
 # 5) Confusion matrices on training
 conf_matrix(df.true = iPlexData_Epi$Subtype,
-            df.pred = models$rf_model$predicted,
+            df.pred = pure_models$rf_model$predicted,
             title   = "Training — OOB (Uncalibrated)")
 
 conf_matrix(df.true = iPlexData_Epi$Subtype,
-            df.pred = models$calibrated_table$calls,
+            df.pred = pure_models$calibrated_table$calls,
             title   = "Training — Calibrated")
+
+
+conf_matrix(df.true = impure_data$Subtype,
+            df.pred = mixed_models$rf_model$predicted,
+            title   = "Impure Training — OOB (Uncalibrated)")
+
+conf_matrix(df.true = impure_data$Subtype,
+            df.pred = mixed_models$calibrated_table$calls,
+            title   = "Impure Training — Calibrated")
 
 # 6) Predict on Query (uncalibrated & calibrated)
 pure_preds <- Run_Model(
@@ -126,10 +149,10 @@ mixed_preds <- Run_Model(
 
 
 dir.create("outputs", showWarnings = FALSE)
-write.csv(pure_preds$pure_model,       "outputs/predictions_uncalibrated.csv", row.names = TRUE)
+write.csv(pure_preds$model,       "outputs/predictions_uncalibrated.csv", row.names = TRUE)
 write.csv(pure_oreds$calibrated_model, "outputs/predictions_calibrated.csv",   row.names = TRUE)
 
-write.csv(mixed_preds$pure_model,       "outputs/predictions_uncalibrated.csv", row.names = TRUE)
+write.csv(mixed_preds$model,       "outputs/predictions_uncalibrated.csv", row.names = TRUE)
 write.csv(mixed_oreds$calibrated_model, "outputs/predictions_calibrated.csv",   row.names = TRUE)
 ```
 
