@@ -97,7 +97,8 @@ cat("Mean misclassification error:", cv$mean_error, "\n")
 cat("Mean multiclass AUC:",        cv$mean_auc,   "\n")
 
 # 4) Fit final RF + final calibrator
-models <- Fit_RF_model(iPlexData_Epi, cv = cv, ntrees = 500, mtry = 6, seed = 123)
+pure_models <- Fit_RF_model(iPlexData_Epi, cv = cv, ntrees = 500, mtry = 6, seed = 123)
+mixed_models <- Fit_RF_model(impure_data, cv = cv, ntrees = 500, mtry = 6, seed = 123)
 
 # 5) Confusion matrices on training
 conf_matrix(df.true = iPlexData_Epi$Subtype,
@@ -109,16 +110,27 @@ conf_matrix(df.true = iPlexData_Epi$Subtype,
             title   = "Training — Calibrated")
 
 # 6) Predict on Query (uncalibrated & calibrated)
-preds <- Run_Pure_Model(
+pure_preds <- Run_Model(
   test_data              = Query,
-  pure_rf_model          = models$rf_model,
-  pure_calibration_model = models$calibration_model,
+  pure_rf_model          = pure_models$rf_model,
+  pure_calibration_model = pure_models$calibration_model,
   blanks_threshold       = 21
 )
 
+mixed_preds <- Run_Model(
+  test_data              = Query,
+  pure_rf_model          = mixed_models$rf_model,
+  pure_calibration_model = mixed_models$calibration_model,
+  blanks_threshold       = 21
+)
+
+
 dir.create("outputs", showWarnings = FALSE)
-write.csv(preds$pure_model,       "outputs/predictions_uncalibrated.csv", row.names = TRUE)
-write.csv(preds$calibrated_model, "outputs/predictions_calibrated.csv",   row.names = TRUE)
+write.csv(pure_preds$pure_model,       "outputs/predictions_uncalibrated.csv", row.names = TRUE)
+write.csv(pure_oreds$calibrated_model, "outputs/predictions_calibrated.csv",   row.names = TRUE)
+
+write.csv(mixed_preds$pure_model,       "outputs/predictions_uncalibrated.csv", row.names = TRUE)
+write.csv(mixed_oreds$calibrated_model, "outputs/predictions_calibrated.csv",   row.names = TRUE)
 ```
 
 ---
