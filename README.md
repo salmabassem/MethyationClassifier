@@ -163,5 +163,5 @@ write.csv(mixed_oreds$calibrated_model, "outputs/predictions_calibrated.csv",   
 - Always read CSVs with `check.names = FALSE` to preserve CpG names.
 - If you see **“No overlapping CpGs between training and query”**, ensure headers match and that you called `Prepare_Training()` with the same Query you will predict on.
 
----
+----
 
