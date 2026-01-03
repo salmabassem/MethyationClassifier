@@ -229,3 +229,42 @@ Run_Pure_Model <- function( pure_rf_model = models$rf_model, pure_calibration_mo
 
 ###################################################################################
 
+
+Add_Impurity <- function(iPlexData_Epi, Normal_samples, impure_column )  {
+  
+  m <- which(colnames(iPlexData_Epi) == "Subtype")
+  data <- as.data.frame(t(iPlexData_Epi[,-m]))
+  
+  idx <- match(rownames(data), rownames(Normal_samples))
+  Normal_samples <- Normal_samples[idx,]
+  all(rownames(data) == rownames(Normal_samples))
+  
+  Normal_samples$average <- rowMeans(Normal_samples)
+  
+  y <- rownames(data)
+  data <- transform(apply(data,2 , as.numeric), row.names = y)
+  pheatmap(data, show_rownames = TRUE, show_colnames = FALSE)
+  p <- pheatmap(data)
+  roworderz <- rownames(data)[row_order(p)]
+  colorderz <- p@column_order
+  
+  impurity_levels <- runif(n = ncol(data), min = 0.3, max = 0.7)
+  
+  impure_data <- data
+  y <- rownames(impure_data)
+  impure_data <- transform(apply(impure_data, 2, as.numeric), row.names = y)
+
+  for (i in 1:ncol(impure_data)) {
+    impure_data[, i] <- ((1 - impurity_levels[i]) * impure_data[, i]) + (impurity_levels[i] *  Normal_samples[impure_column])
+  }
+  
+  draw_df <- impure_data[roworderz, ]
+  pheatmap(draw_df, show_rownames = TRUE, show_colnames = FALSE, cluster_rows = FALSE)
+  
+  impure_data <- t(impure_data)
+  impure_data <- transform(merge(impure_data, iPlexData_Epi["Subtype"], by = 0), row.names = 1)
+  
+  return(impure_data)
+}
+
+################################################################################
