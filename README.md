@@ -90,7 +90,7 @@ iPlexData_Epi <- Prepare_Training(MethData, Epitypes, Query)
 
 # 3) Prepare Mixed data with added in silico impurity
 
-normal <- read.csv(" .csv", row.names = 1) 
+normal <- read.csv("Normal_PBMCs.csv", row.names = 1)  ## or any data you want to supply 
 impure_data <-  Add_Impurity(iPlexData_Epi = iPlexData_Epi, Normal_samples = normal, impure_column = "average")
 
 # 3) Nested CV metrics (per-fold calibrator)
