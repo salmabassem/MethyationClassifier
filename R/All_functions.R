@@ -198,19 +198,19 @@ list(
 
 
 
-Run_Pure_Model <- function( pure_rf_model = models$rf_model, pure_calibration_model = models$calibration_model, test_data = test, blanks_threshold = 21){
+Run_Model <- function( rf_model = models$rf_model, calibration_model = models$calibration_model, test_data = test, blanks_threshold = 21){
   
   test_data <- test_data[test_data$Blanks < blanks_threshold , ]
   m <- which(colnames(Query) == "Blanks")
   test_data <- test_data[, -m]
 
 
-  test_probabilities <- predict(pure_rf_model, test_data, type = "prob")
-  test_calls <- as.data.frame(predict(pure_rf_model, test_data))
+  test_probabilities <- predict(rf_model, test_data, type = "prob")
+  test_calls <- as.data.frame(predict(rf_model, test_data))
   colnames(test_calls) <- "calls"
   test_df <- transform(merge(test_probabilities, test_calls, by = 0), row.names = 1)
   
-  calibrated_probs <- predict(pure_calibration_model, newx = as.matrix(test_probabilities), type = "response")
+  calibrated_probs <- predict(calibration_model, newx = as.matrix(test_probabilities), type = "response")
   names <- colnames(calibrated_probs)
   calibrated_probs_df <- as.data.frame(calibrated_probs)
   colnames(calibrated_probs_df) <- names
@@ -220,9 +220,9 @@ Run_Pure_Model <- function( pure_rf_model = models$rf_model, pure_calibration_mo
   
   Query <- Query[rownames(test_df), ]
   
-  Pure_Probs <- list(pure_model = as.data.frame(test_df), calibrated_model = calibrated_probs_df, Query = Query)
+  Probs <- list(model = as.data.frame(test_df), calibrated_model = calibrated_probs_df, Query = Query)
   
-  return(Pure_Probs)
+  return(Probs)
 } 
 
 
@@ -268,3 +268,4 @@ Add_Impurity <- function(iPlexData_Epi, Normal_samples, impure_column )  {
 }
 
 ################################################################################
+
