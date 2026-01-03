@@ -112,15 +112,15 @@ conf_matrix(df.true = iPlexData_Epi$Subtype,
 # 6) Predict on Query (uncalibrated & calibrated)
 pure_preds <- Run_Model(
   test_data              = Query,
-  pure_rf_model          = pure_models$rf_model,
-  pure_calibration_model = pure_models$calibration_model,
+  rf_model          = pure_models$rf_model,
+  calibration_model = pure_models$calibration_model,
   blanks_threshold       = 21
 )
 
 mixed_preds <- Run_Model(
   test_data              = Query,
-  pure_rf_model          = mixed_models$rf_model,
-  pure_calibration_model = mixed_models$calibration_model,
+  rf_model          = mixed_models$rf_model,
+  calibration_model = mixed_models$calibration_model,
   blanks_threshold       = 21
 )
 
