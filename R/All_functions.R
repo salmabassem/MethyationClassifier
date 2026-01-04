@@ -29,7 +29,6 @@ Prepare_Training = function ( MethData, Epitypes, Query)  {
 
 
 ###################################################################################
-
 nested_cv_calibrated_rf <- function(
     data, label_col = "Subtype",
     ntrees = 500, mtry = 6,
@@ -46,14 +45,9 @@ nested_cv_calibrated_rf <- function(
   misclassification_errors <- c()
   auc_values <- c()
   
-  # helper for balanced downsampling
-  make_sampsize <- function(yv) {
-    tab <- table(yv)
-    s <- rep(min(tab), length(tab)); names(s) <- names(tab); s
-  }
-  
-  last_calibration_probs  <- NULL
-  last_calibration_labels <- NULL
+  # CHANGED: Store ALL calibration data from ALL folds
+  all_calibration_probs  <- list()
+  all_calibration_labels <- list()
   
   for (i in seq_along(outer_idx)) {
     train_indices <- outer_idx[[i]]
@@ -61,7 +55,8 @@ nested_cv_calibrated_rf <- function(
     test_data  <- data[-train_indices, , drop = FALSE]
     
     class_distribution <- table(train_data[[label_col]])
-    sampsize <- rep(min(class_distribution), length(class_distribution)); names(sampsize) <- names(class_distribution)
+    sampsize <- rep(min(class_distribution), length(class_distribution))
+    names(sampsize) <- names(class_distribution)
     
     set.seed(seed + i)
     rf_model <- randomForest::randomForest(
@@ -74,15 +69,17 @@ nested_cv_calibrated_rf <- function(
     
     inner_folds_idx <- caret::createFolds(train_data[[label_col]], k = inner_folds)
     
-    calibration_probs  <- NULL
-    calibration_labels <- NULL
+    # Store this fold's calibration data
+    fold_calibration_probs  <- NULL
+    fold_calibration_labels <- NULL
     
     for (j in seq_along(inner_folds_idx)) {
       inner_train <- train_data[ inner_folds_idx[[j]], , drop = FALSE]
       inner_test  <- train_data[-inner_folds_idx[[j]], , drop = FALSE]
       
       class_distribution <- table(inner_train[[label_col]])
-      sampsize <- rep(min(class_distribution), length(class_distribution)); names(sampsize) <- names(class_distribution)
+      sampsize <- rep(min(class_distribution), length(class_distribution))
+      names(sampsize) <- names(class_distribution)
       
       inner_rf <- randomForest::randomForest(
         x = inner_train[, feats, drop = FALSE],
@@ -93,16 +90,22 @@ nested_cv_calibrated_rf <- function(
       )
       
       inner_probs <- predict(inner_rf, inner_test[, feats, drop = FALSE], type = "prob")
-      calibration_probs  <- rbind(calibration_probs, inner_probs)
-      calibration_labels <- c(calibration_labels, as.character(inner_test[[label_col]]))
+      fold_calibration_probs  <- rbind(fold_calibration_probs, inner_probs)
+      fold_calibration_labels <- c(fold_calibration_labels, as.character(inner_test[[label_col]]))
     }
     
+    # CHANGED: Collect calibration data from THIS fold
+    all_calibration_probs[[i]]  <- fold_calibration_probs
+    all_calibration_labels[[i]] <- fold_calibration_labels
+    
+    # Train calibrator for THIS fold (for validation)
     calibration_model <- glmnet::cv.glmnet(
-      x = as.matrix(calibration_probs),
-      y = as.factor(calibration_labels),
+      x = as.matrix(fold_calibration_probs),
+      y = as.factor(fold_calibration_labels),
       family = "multinomial", alpha = 0
     )
     
+    # Predict on outer test fold
     test_probs <- predict(rf_model, test_data[, feats, drop = FALSE], type = "prob")
     calibrated_scores <- predict(calibration_model, newx = as.matrix(test_probs), type = "response")
     if (length(dim(calibrated_scores)) == 3) calibrated_scores <- calibrated_scores[, , 1, drop = TRUE]
@@ -110,85 +113,94 @@ nested_cv_calibrated_rf <- function(
     calibrated_scores <- as.data.frame(calibrated_scores, check.names = FALSE)
     
     predicted_classes <- colnames(calibrated_scores)[max.col(calibrated_scores)]
-    misclassification_errors <- c(misclassification_errors, mean(as.character(predicted_classes) != as.character(test_data[[label_col]])))
+    misclassification_errors <- c(misclassification_errors, 
+                                   mean(as.character(predicted_classes) != as.character(test_data[[label_col]])))
     
-    auc_values <- c(auc_values, as.numeric(pROC::multiclass.roc(test_data[[label_col]], calibrated_scores)$auc))
-    
-    # keep the *last* fold's inner stacks, like your script ends up using
-    last_calibration_probs  <- calibration_probs
-    last_calibration_labels <- calibration_labels
+    auc_values <- c(auc_values, 
+                    as.numeric(pROC::multiclass.roc(test_data[[label_col]], calibrated_scores)$auc))
   }
+  
+  # CHANGED: Combine ALL folds' calibration data
+  combined_calibration_probs  <- do.call(rbind, all_calibration_probs)
+  combined_calibration_labels <- unlist(all_calibration_labels)
   
   list(
     mean_error = mean(misclassification_errors),
     mean_auc   = mean(auc_values),
     per_fold_error = misclassification_errors,
     per_fold_auc   = auc_values,
-    last_calibration_probs  = last_calibration_probs,
-    last_calibration_labels = last_calibration_labels
+    # CHANGED: Return ALL calibration data, not just last fold
+    all_calibration_probs  = combined_calibration_probs,
+    all_calibration_labels = combined_calibration_labels
   )
 }
 
-
 ##################################################################################################
 
-Fit_RF_model <-  function(data, cv, label_col = "Subtype",
-                          ntrees = 500, mtry = 6, seed = 123) {
+
+
+Fit_RF_model <- function(data, cv, label_col = "Subtype",
+                         ntrees = 500, mtry = 6, seed = 123) {
   
-feats <- setdiff(names(data), label_col)
-class_distribution <- table(data$Subtype)
-sampsize <- rep(min(class_distribution), length(class_distribution))
-
-set.seed(seed)
-rf_model <- randomForest::randomForest(
-  x = data[, feats, drop = FALSE],
-  y = data[[label_col]],
-  ntree = ntrees, mtry = mtry,
-  sampsize = sampsize,
-  importance = TRUE, proximity = TRUE, oob.prox = TRUE, keep.forest = TRUE
-)
-
-rf_model
-
-conf_matrix(
-  df.true = data[[label_col]],
-  df.pred = rf_model$predicted,
-  title   = "Training Data Confusion Matrix - No calibration"
-)
-
-calibration_model <- glmnet::cv.glmnet(
-  x = as.matrix(cv$last_calibration_probs),
-  y = as.factor(cv$last_calibration_labels),
-  family = "multinomial",
-  alpha  = 0
-)
-
-
-test_probabilities <- predict(rf_model, data, type = "prob")
-calibrated_probs <- predict(calibration_model, newx = as.matrix(test_probabilities), type = "response")
-names <- colnames(calibrated_probs)
-calibrated_probs_df <- as.data.frame(calibrated_probs)
-colnames(calibrated_probs_df) <- names
-datatable(calibrated_probs_df)
-
-calibrated_probs_df$calls <-  colnames(calibrated_probs_df)[max.col(calibrated_probs_df)]
-conf_matrix(
-  df.true = data[[label_col]],
-  df.pred = calibrated_probs_df$calls,
-  title   = "Conf. Matrix on Training Data - Calibrated Calls"
-)
-
-
-
-list(
-  rf_model          = rf_model,
-  calibration_model = calibration_model,
-  calibrated_table  = calibrated_probs_df,
-  features          = feats,
-  classes           = levels(data[[label_col]])
-)
+  feats <- setdiff(names(data), label_col)
+  class_distribution <- table(data[[label_col]])
+  sampsize <- rep(min(class_distribution), length(class_distribution))
+  names(sampsize) <- names(class_distribution)
+  
+  set.seed(seed)
+  rf_model <- randomForest::randomForest(
+    x = data[, feats, drop = FALSE],
+    y = data[[label_col]],
+    ntree = ntrees, mtry = mtry,
+    sampsize = sampsize,
+    importance = TRUE, proximity = TRUE, oob.prox = TRUE, keep.forest = TRUE
+  )
+  
+  # Show uncalibrated performance
+  conf_matrix(
+    df.true = data[[label_col]],
+    df.pred = rf_model$predicted,
+    title   = "Training Data Confusion Matrix - No calibration"
+  )
+  
+  # CHANGED: Use ALL calibration data from CV, not just last fold
+  calibration_model <- glmnet::cv.glmnet(
+    x = as.matrix(cv$all_calibration_probs),   # CHANGED: was last_calibration_probs
+    y = as.factor(cv$all_calibration_labels),  # CHANGED: was last_calibration_labels
+    family = "multinomial",
+    alpha  = 0
+  )
+  
+  # Apply calibration to training data
+  test_probabilities <- predict(rf_model, data, type = "prob")
+  calibrated_probs <- predict(calibration_model, newx = as.matrix(test_probabilities), 
+                              type = "response")
+  
+  # Handle 3D array output
+  if (length(dim(calibrated_probs)) == 3) {
+    calibrated_probs <- calibrated_probs[, , 1, drop = TRUE]
+  }
+  
+  names <- colnames(calibrated_probs)
+  calibrated_probs_df <- as.data.frame(calibrated_probs)
+  colnames(calibrated_probs_df) <- names
+  
+  # Show calibrated performance
+  calibrated_probs_df$calls <- colnames(calibrated_probs_df)[max.col(calibrated_probs_df)]
+  conf_matrix(
+    df.true = data[[label_col]],
+    df.pred = calibrated_probs_df$calls,
+    title   = "Conf. Matrix on Training Data - Calibrated Calls"
+  )
+  
+  list(
+    rf_model          = rf_model,
+    calibration_model = calibration_model,
+    calibrated_table  = calibrated_probs_df,
+    features          = feats,
+    classes           = levels(data[[label_col]])
+  )
 }
-
 
 
 
@@ -268,4 +280,5 @@ Add_Impurity <- function(iPlexData_Epi, Normal_samples, impure_column )  {
 }
 
 ################################################################################
+
 
