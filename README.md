@@ -70,7 +70,7 @@ Outputs:
 
 ---
 
-## Example (inline)
+## Example for AML (inline)
 
 ```r
 library(randomForest); library(glmnet); library(caret); library(pROC); library(DT)
@@ -156,6 +156,96 @@ write.csv(mixed_preds$model,       "outputs/predictions_uncalibrated.csv", row.n
 write.csv(mixed_oreds$calibrated_model, "outputs/predictions_calibrated.csv",   row.names = TRUE)
 ```
 
+
+## Example for CLL (inline)
+
+```r
+library(randomForest); library(glmnet); library(caret); library(pROC); library(DT)
+source("R/confusion_matrix.R")
+source("R/All_functions.R")
+
+set.seed(123)
+
+# 1) Load data (preserve CpG names)
+
+CLLdata <- read.csv("CLL_trainingdata.csv", row.names = 1)
+
+for (i in 2:ncol(CLLdata)) {
+  CLLdata[,i] <- as.numeric(CLLdata[, i])
+}
+CLLdata$Subtype <- as.factor(CLLdata$Subtype)
+
+# 2) Prepare Mixed data with added in silico impurity
+
+normal <- read.csv("Normal_PBMCs_CLL.csv", row.names = 1)  ## or any data you want to supply 
+impure_CLL <-  Add_Impurity(iPlexData_Epi = CLLdata[,1:7], Normal_samples = normal, impure_column = "average")
+impure_CLL <- transform(merge(impure_CLL, CLLdata[,8:21], by = 0), row.names = 1)   ## Only added impurity for 6 annotated CpGs 
+
+# 3) Nested CV metrics (per-fold calibrator)
+pure_cv <- nested_cv_calibrated_rf(CLLdata,
+                              ntrees = 500, mtry = 6,
+                              outer_folds = 3, inner_folds = 3,
+                              seed = 123)
+impure_cv <- nested_cv_calibrated_rf(impure_CLL,
+                              ntrees = 500, mtry = 6,
+                              outer_folds = 3, inner_folds = 3,
+                              seed = 123)
+
+cat("Mean misclassification error:", pure_cv$mean_error, "\n")
+cat("Mean multiclass AUC:",        pure_cv$mean_auc,   "\n")
+
+cat("Mean misclassification error:", impure_cv$mean_error, "\n")
+cat("Mean multiclass AUC:",        impure_cv$mean_auc,   "\n")
+
+
+# 4) Fit final RF + final calibrator
+pure_models <- Fit_RF_model(CLLdata, cv = pure_cv, ntrees = 500, mtry = 6, seed = 123)
+mixed_models <- Fit_RF_model(impure_CLL, cv = impure_cv, ntrees = 500, mtry = 6, seed = 123)
+
+# 5) Confusion matrices on training
+conf_matrix(df.true = CLLdata$Subtype,
+            df.pred = pure_models$rf_model$predicted,
+            title   = "Training — OOB (Uncalibrated)")
+
+conf_matrix(df.true = CLLdata$Subtype,
+            df.pred = pure_models$calibrated_table$calls,
+            title   = "Training — Calibrated")
+
+
+conf_matrix(df.true = impure_CLL$Subtype,
+            df.pred = mixed_models$rf_model$predicted,
+            title   = "Impure Training — OOB (Uncalibrated)")
+
+conf_matrix(df.true = impure_CLL$Subtype,
+            df.pred = mixed_models$calibrated_table$calls,
+            title   = "Impure Training — Calibrated")
+
+# 6) Predict on Query (uncalibrated & calibrated)
+pure_preds <- Run_Model(
+  test_data              = Query,
+  rf_model          = pure_models$rf_model,
+  calibration_model = pure_models$calibration_model,
+  blanks_threshold       = 3    ## whatever number of blanks needed 
+)
+
+mixed_preds <- Run_Model(
+  test_data              = Query,
+  rf_model          = mixed_models$rf_model,
+  calibration_model = mixed_models$calibration_model,
+  blanks_threshold       = 3
+)
+
+
+dir.create("outputs", showWarnings = FALSE)
+write.csv(pure_preds$model,       "outputs/CLL_predictions_uncalibrated.csv", row.names = TRUE)
+write.csv(pure_oreds$calibrated_model, "outputs/CLL_predictions_calibrated.csv",   row.names = TRUE)
+
+write.csv(mixed_preds$model,       "outputs/CLL_mixed_predictions_uncalibrated.csv", row.names = TRUE)
+write.csv(mixed_oreds$calibrated_model, "outputs/CLL_mixed_predictions_calibrated.csv",   row.names = TRUE)
+```
+
+
+
 ---
 
 ## Tips
@@ -164,4 +254,6 @@ write.csv(mixed_oreds$calibrated_model, "outputs/predictions_calibrated.csv",   
 - If you see **“No overlapping CpGs between training and query”**, ensure headers match and that you called `Prepare_Training()` with the same Query you will predict on.
 
 ----
+
+
 
