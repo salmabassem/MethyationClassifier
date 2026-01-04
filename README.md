@@ -80,9 +80,9 @@ source("R/All_functions.R")
 set.seed(123)
 
 # 1) Load data (preserve CpG names)
-MethData <- read.csv("data/TrainingData.csv", check.names = FALSE)
-Epitypes <- read.csv("data/Epitypes.csv", check.names = FALSE)
-Query    <- read.csv("data/TestData.csv",
+MethData <- read.csv("Data/TrainingData.csv", check.names = FALSE)
+Epitypes <- read.csv("Data/Epitypes.csv", check.names = FALSE)
+Query    <- read.csv("Data/TestData.csv",
                      row.names = 1, check.names = FALSE)
 
 # 2) Prepare training aligned to Query CpGs
@@ -168,7 +168,7 @@ set.seed(123)
 
 # 1) Load data (preserve CpG names)
 
-CLLdata <- read.csv("CLL_trainingdata.csv", row.names = 1)
+CLLdata <- read.csv("Data/CLL_trainingdata.csv", row.names = 1)
 
 for (i in 2:ncol(CLLdata)) {
   CLLdata[,i] <- as.numeric(CLLdata[, i])
@@ -177,7 +177,7 @@ CLLdata$Subtype <- as.factor(CLLdata$Subtype)
 
 # 2) Prepare Mixed data with added in silico impurity
 
-normal <- read.csv("Normal_PBMCs_CLL.csv", row.names = 1)  ## or any data you want to supply 
+normal <- read.csv("Data/Normal_PBMCs_CLL.csv", row.names = 1)  ## or any data you want to supply 
 impure_CLL <-  Add_Impurity(iPlexData_Epi = CLLdata[,1:7], Normal_samples = normal, impure_column = "average")
 impure_CLL <- transform(merge(impure_CLL, CLLdata[,8:21], by = 0), row.names = 1)   ## Only added impurity for 6 annotated CpGs 
 
