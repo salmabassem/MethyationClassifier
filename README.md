@@ -177,9 +177,10 @@ CLLdata$Subtype <- as.factor(CLLdata$Subtype)
 
 # 2) Prepare Mixed data with added in silico impurity
 
-normal <- read.csv("Data/Normal_PBMCs_CLL.csv", row.names = 1)  ## or any data you want to supply 
-impure_CLL <-  Add_Impurity(iPlexData_Epi = CLLdata[,1:7], Normal_samples = normal, impure_column = "average")
-impure_CLL <- transform(merge(impure_CLL, CLLdata[,8:21], by = 0), row.names = 1)   ## Only added impurity for 6 annotated CpGs 
+normal <- read.csv("Data/CLL iPLEX data for mixing impurity.csv", row.names = 1)  ## or any data you want to supply 
+impure_CLL <- Add_Impurity_withType(iPlexData_Epi = CLLdata, Normal_samples = normal, impure_column = "average" , Impurity_type =  "NBC", min = 0.3, max = 0.7)
+## Impurity_type helps you choose type of insilico mixed samples, which chould be in a column named "Impurity.type"
+## impure_column helps you choose either average of samples or a particular sample 
 
 # 3) Nested CV metrics (per-fold calibrator)
 pure_cv <- nested_cv_calibrated_rf(CLLdata,
