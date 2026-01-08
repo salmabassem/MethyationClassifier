@@ -282,3 +282,42 @@ Add_Impurity <- function(iPlexData_Epi, Normal_samples, impure_column )  {
 ################################################################################
 
 
+### Normal samples has various samples categorized in an Impurity.type column
+## impure_column helps you choose whether average of samples or a specific sample
+
+Add_Impurity_withType <- function(iPlexData_Epi, Normal_samples, impure_column, min = 0.3, max = 0.7, Impurity_type )  {
+  
+  m <- which(colnames(iPlexData_Epi) == "Subtype")
+  data <- as.data.frame(t(iPlexData_Epi[,-m]))
+  
+  Normal_samples <- Normal_samples[Normal_samples$Impurity.type == Impurity_type, ]
+  m <- which(colnames(Normal_samples) == "Impurity.type")
+  Normal_samples <- as.data.frame(t(Normal_samples[,-m]))
+  
+  
+  idx <- match(rownames(data), rownames(Normal_samples))
+  Normal_samples <- Normal_samples[idx,]
+  all(rownames(data) == rownames(Normal_samples))
+  
+  Normal_samples$average <- rowMeans(Normal_samples)
+  
+  y <- rownames(data)
+  data <- transform(apply(data,2 , as.numeric), row.names = y)
+  impurity_levels <- runif(n = ncol(data), min = min, max = max)
+  
+  impure_data <- data
+  y <- rownames(impure_data)
+  impure_data <- transform(apply(impure_data, 2, as.numeric), row.names = y)
+
+  for (i in 1:ncol(impure_data)) {
+    impure_data[, i] <- ((1 - impurity_levels[i]) * impure_data[, i]) + (impurity_levels[i] *  Normal_samples[impure_column])
+  }
+  
+  impure_data <- t(impure_data)
+  impure_data <- transform(merge(impure_data, iPlexData_Epi["Subtype"], by = 0), row.names = 1)
+  
+  return(impure_data)
+}
+
+###############################################################################################
+
